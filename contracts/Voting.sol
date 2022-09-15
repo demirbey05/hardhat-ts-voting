@@ -11,18 +11,22 @@ contract Voting {
     event ProposalAdded(uint256 proposalIndex);
     event VoteUsed(address indexed voter, uint256 indexed proposalIndex);
     event WinnerDeclared(uint256 indexed proposalIndex);
+    event NewVotingCreated();
 
     address private immutable s_chairPerson;
 
     struct VoteRight {
-        bool isAdded;
         uint256 voteWeight;
         bool isVoted;
     }
-    mapping(address => VoteRight) private s_voters;
+
+    struct Map {
+        address[] keys;
+        mapping(address => VoteRight) values;
+    }
+    Map private s_voters;
 
     struct Proposal {
-        bool isAdded;
         uint256 proposalIndex;
         uint256 voteCount;
     }
@@ -31,15 +35,17 @@ contract Voting {
 
     constructor() {
         s_chairPerson = msg.sender;
-        s_voters[msg.sender] = VoteRight(true, 2, false);
+        s_voters.values[msg.sender] = VoteRight(2, false);
+        s_voters.keys.push(msg.sender);
     }
 
     function addMember(address candidateMember) public {
         if (msg.sender != s_chairPerson) {
             revert NotAuthorized();
         }
-        VoteRight memory temp = VoteRight(true, 1, false);
-        s_voters[candidateMember] = temp;
+        VoteRight memory temp = VoteRight(1, false);
+        s_voters.values[candidateMember] = temp;
+        s_voters.keys.push(candidateMember);
         emit MemberAdded(candidateMember);
     }
 
@@ -47,20 +53,23 @@ contract Voting {
         if (msg.sender != s_chairPerson) {
             revert NotAuthorized();
         }
-        proposals.push(Proposal(true, proposals.length, 0));
-        emit ProposalAdded(proposals.length - 1);
+        proposals.push(Proposal(proposals.length + 1, 0));
+        emit ProposalAdded(proposals.length);
     }
 
     function vote(uint256 proposalIndex) public {
-        if ((!s_voters[msg.sender].isAdded) || (s_voters[msg.sender].isVoted)) {
+        if (
+            (s_voters.values[msg.sender].voteWeight == 0) ||
+            (s_voters.values[msg.sender].isVoted)
+        ) {
             revert NotAuthorizedToVote(msg.sender);
         }
-        if (!proposals[proposalIndex].isAdded) {
+        if (proposals[proposalIndex].proposalIndex == 0) {
             revert ProposalNotFound();
         }
 
         proposals[proposalIndex].voteCount++;
-        s_voters[msg.sender].isVoted = true;
+        s_voters.values[msg.sender].isVoted = true;
         emit VoteUsed(msg.sender, proposalIndex);
     }
 
@@ -81,8 +90,21 @@ contract Voting {
             }
         }
         emit WinnerDeclared(winnerIndex);
-        delete proposals;
         return proposals[winnerIndex].proposalIndex;
+    }
+
+    function startNewVoting() public {
+        if (msg.sender != s_chairPerson) {
+            revert NotAuthorized();
+        }
+        delete proposals;
+        address tempMember;
+        for (uint i = 0; i < s_voters.keys.length; i++) {
+            tempMember = s_voters.keys[i];
+            delete s_voters.values[tempMember];
+        }
+        delete s_voters.keys;
+        emit NewVotingCreated();
     }
 
     function getChairPerson() public view returns (address) {
@@ -94,7 +116,7 @@ contract Voting {
         view
         returns (VoteRight memory)
     {
-        return s_voters[member];
+        return s_voters.values[member];
     }
 
     function getProposal(uint256 index) public view returns (Proposal memory) {
