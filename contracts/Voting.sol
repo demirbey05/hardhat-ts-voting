@@ -1,10 +1,15 @@
 // SPDX-License-Identifier:MIT
 
+/* Future Improvements 
+    - Remove Proposal
+    - More Robust Evaluation
+*/
 pragma solidity ^0.8.0;
 
 error NotAuthorized();
 error NotAuthorizedToVote(address invalidPerson);
 error ProposalNotFound();
+error WrongState();
 
 contract Voting {
     event MemberAdded(address member);
@@ -12,8 +17,16 @@ contract Voting {
     event VoteUsed(address indexed voter, uint256 indexed proposalIndex);
     event WinnerDeclared(uint256 indexed proposalIndex);
     event NewVotingCreated();
+    event StateChanged(Status oldState, Status newState);
 
     address private immutable s_chairPerson;
+    enum Status {
+        PREPARING,
+        VOTING,
+        FINISH
+    }
+
+    Status private state;
 
     struct VoteRight {
         uint256 voteWeight;
@@ -37,9 +50,23 @@ contract Voting {
         s_chairPerson = msg.sender;
         s_voters.values[msg.sender] = VoteRight(2, false);
         s_voters.keys.push(msg.sender);
+        state = Status.PREPARING;
+    }
+
+    function incrementState() public {
+        if (msg.sender != s_chairPerson) {
+            revert NotAuthorized();
+        }
+        Status temp = state;
+        state = Status(uint(state) + 1);
+        emit StateChanged(temp, state);
     }
 
     function addMember(address candidateMember) public {
+        if (state != Status.PREPARING) {
+            revert WrongState();
+        }
+
         if (msg.sender != s_chairPerson) {
             revert NotAuthorized();
         }
@@ -50,6 +77,9 @@ contract Voting {
     }
 
     function addProposal() public {
+        if (state != Status.PREPARING) {
+            revert WrongState();
+        }
         if (msg.sender != s_chairPerson) {
             revert NotAuthorized();
         }
@@ -58,6 +88,9 @@ contract Voting {
     }
 
     function vote(uint256 proposalIndex) public {
+        if (state != Status.VOTING) {
+            revert WrongState();
+        }
         if (
             (s_voters.values[msg.sender].voteWeight == 0) ||
             (s_voters.values[msg.sender].isVoted)
@@ -68,12 +101,17 @@ contract Voting {
             revert ProposalNotFound();
         }
 
-        proposals[proposalIndex].voteCount++;
+        proposals[proposalIndex].voteCount =
+            proposals[proposalIndex].voteCount +
+            s_voters.values[msg.sender].voteWeight;
         s_voters.values[msg.sender].isVoted = true;
         emit VoteUsed(msg.sender, proposalIndex);
     }
 
     function declareWinner() public returns (uint256) {
+        if (state != Status.FINISH) {
+            revert WrongState();
+        }
         if (msg.sender != s_chairPerson) {
             revert NotAuthorized();
         }
@@ -94,6 +132,9 @@ contract Voting {
     }
 
     function startNewVoting() public {
+        if (state != Status.FINISH) {
+            revert WrongState();
+        }
         if (msg.sender != s_chairPerson) {
             revert NotAuthorized();
         }
@@ -104,6 +145,10 @@ contract Voting {
             delete s_voters.values[tempMember];
         }
         delete s_voters.keys;
+        s_voters.values[msg.sender] = VoteRight(2, false);
+        s_voters.keys.push(msg.sender);
+
+        state = Status.PREPARING;
         emit NewVotingCreated();
     }
 
@@ -121,5 +166,9 @@ contract Voting {
 
     function getProposal(uint256 index) public view returns (Proposal memory) {
         return proposals[index];
+    }
+
+    function getState() public view returns (Status) {
+        return state;
     }
 }
