@@ -9,7 +9,7 @@ error NotAuthorizedToVote(address invalidPerson);
 error ProposalNotFound();
 error WrongState();
 
-contract VotingAutomated is KeeperCompatible {
+contract Voting is KeeperCompatible {
     event MemberAdded(address member);
     event ProposalAdded(uint256 proposalIndex);
     event VoteUsed(address indexed voter, uint256 indexed proposalIndex);
@@ -53,6 +53,7 @@ contract VotingAutomated is KeeperCompatible {
         s_voters.keys.push(msg.sender);
         state = Status.PREPARING;
         interval = _interval;
+        lastTimeStamp = block.timestamp;
     }
 
     function incrementState() public {
@@ -160,7 +161,9 @@ contract VotingAutomated is KeeperCompatible {
             bytes memory /* performData */
         )
     {
-        upkeepNeeded = (block.timestamp - lastTimeStamp) > interval;
+        upkeepNeeded =
+            ((block.timestamp - lastTimeStamp) > interval) &&
+            (proposals.length > 0);
         // We don't use the checkData in this example. The checkData is defined when the Upkeep was registered.
     }
 
@@ -174,7 +177,7 @@ contract VotingAutomated is KeeperCompatible {
                 state = Status.VOTING;
             } else if (state == Status.VOTING) {
                 state = Status.FINISH;
-                s_LastWinner = declareWinner();
+                //s_LastWinner = declareWinner();
                 startNewVoting();
             }
         }
@@ -210,5 +213,9 @@ contract VotingAutomated is KeeperCompatible {
 
     function getLastWinner() public view returns (uint256) {
         return s_LastWinner;
+    }
+
+    function getDifference() public view returns (uint256) {
+        return block.timestamp - lastTimeStamp;
     }
 }
