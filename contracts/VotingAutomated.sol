@@ -163,7 +163,8 @@ contract Voting is KeeperCompatible {
     {
         upkeepNeeded =
             ((block.timestamp - lastTimeStamp) > interval) &&
-            (proposals.length > 0);
+            (proposals.length > 0) &&
+            (s_voters.keys.length > 0);
         // We don't use the checkData in this example. The checkData is defined when the Upkeep was registered.
     }
 
@@ -177,7 +178,7 @@ contract Voting is KeeperCompatible {
                 state = Status.VOTING;
             } else if (state == Status.VOTING) {
                 state = Status.FINISH;
-                //s_LastWinner = declareWinner();
+                s_LastWinner = declareWinner();
                 startNewVoting();
             }
         }
