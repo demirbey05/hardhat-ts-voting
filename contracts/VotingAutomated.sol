@@ -9,7 +9,7 @@ error NotAuthorizedToVote(address invalidPerson);
 error ProposalNotFound();
 error WrongState();
 
-contract Voting is KeeperCompatible {
+contract VotingAutomated is KeeperCompatible {
     event MemberAdded(address member);
     event ProposalAdded(uint256 proposalIndex);
     event VoteUsed(address indexed voter, uint256 indexed proposalIndex);
